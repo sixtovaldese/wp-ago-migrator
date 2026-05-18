@@ -1,0 +1,206 @@
+/* aGo Migrator Admin Styles */
+
+/* Layout */
+.ago-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    margin-top: 20px;
+}
+
+.ago-main {
+    flex: 1;
+    max-width: 680px;
+}
+
+.ago-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+    .ago-layout { flex-direction: column; }
+    .ago-sidebar { width: 100%; max-width: 680px; }
+}
+
+.ago-card {
+    max-width: 100% !important;
+}
+
+/* Progress */
+.ago-progress-wrap {
+    background: #e0e0e0;
+    border-radius: 4px;
+    height: 24px;
+    margin: 16px 0;
+    overflow: hidden;
+}
+
+.ago-progress-bar {
+    background: linear-gradient(90deg, #2271b1, #135e96);
+    height: 100%;
+    width: 0;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.ago-status {
+    font-size: 13px;
+    color: #555;
+    min-height: 20px;
+}
+
+/* Dropzone */
+.ago-dropzone {
+    border: 2px dashed #b4b9be;
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.ago-dropzone.dragover {
+    border-color: #2271b1;
+    background: #f0f6fc;
+}
+
+.ago-dropzone p {
+    margin: 4px 0;
+    color: #888;
+}
+
+/* Manifest display */
+.ago-manifest {
+    background: #f6f7f7;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-family: monospace;
+    font-size: 12px;
+    margin: 12px 0;
+}
+
+.ago-manifest p { margin: 2px 0; }
+
+/* Log */
+.ago-log {
+    background: #1d2327;
+    color: #a7aaad;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 16px;
+    border-radius: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 20px;
+}
+
+.ago-log .log-line { margin: 2px 0; white-space: pre-wrap; }
+.ago-log .log-ok { color: #68de7c; }
+.ago-log .log-err { color: #e65054; }
+.ago-log .log-info { color: #72aee6; }
+
+/* Features list */
+.ago-features {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+}
+
+.ago-features li {
+    font-size: 13px;
+    padding: 3px 0;
+    color: #555;
+}
+
+.ago-features li::before {
+    content: "\2713";
+    color: #00a32a;
+    font-weight: bold;
+    margin-right: 8px;
+}
+
+/* Donation */
+.ago-donation {
+    text-align: center;
+}
+
+.ago-donation-amounts {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin: 12px 0;
+}
+
+.ago-amount {
+    display: inline-block;
+    padding: 8px 18px;
+    background: #f0f0f1;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    color: #1d2327;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.ago-amount:hover {
+    background: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+.ago-coffee-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    background: #1d2327;
+    color: #fff !important;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s;
+    margin: 8px 0;
+}
+
+.ago-coffee-btn:hover {
+    background: #2271b1;
+    color: #fff !important;
+}
+
+.ago-donation-note {
+    font-size: 11px;
+    color: #999;
+    margin-top: 8px;
+}
+
+/* Footer */
+.ago-footer {
+    text-align: center;
+    padding: 16px 0;
+}
+
+.ago-footer-logo {
+    display: inline-block;
+    margin-bottom: 8px;
+    transition: opacity 0.2s;
+}
+
+.ago-footer-logo:hover {
+    opacity: 0.8;
+}
+
+.ago-footer p {
+    font-size: 13px;
+    color: #666;
+    margin: 4px 0;
+}
+
+.ago-footer a {
+    color: #2271b1;
+    text-decoration: none;
+}
