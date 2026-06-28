@@ -1,10 +1,10 @@
 (function () {
     'use strict';
 
-    const cfg = window.agoMigrator;
+    const cfg = window.agomigratorMigrator;
     if (!cfg) return;
 
-    // ── Helpers ─────────────────────────────────────────
+    const t = cfg.i18n || {};
 
     async function postJSON(endpoint, data) {
         const resp = await fetch(cfg.restUrl + endpoint, {
@@ -16,7 +16,7 @@
             body: JSON.stringify(data)
         });
         const json = await resp.json();
-        if (!resp.ok) throw new Error(json.error || json.message || 'Request failed');
+        if (!resp.ok) throw new Error(json.error || json.message || t.requestFailed);
         return json;
     }
 
@@ -54,16 +54,14 @@
         });
     }
 
-    // ── Export ──────────────────────────────────────────
-
     async function startExport() {
         const btn = document.getElementById('ago-export-btn');
         btn.disabled = true;
-        btn.textContent = 'Exportando...';
+        btn.textContent = t.exporting;
         showEl('ago-export-progress');
 
         try {
-            logLine('Iniciando export...', 'info');
+            logLine(t.startingExport, 'info');
             const { job_id, total_steps } = await postJSON('/export/start', {});
             logLine('Job: ' + job_id + ' | Steps: ' + total_steps, 'info');
 
@@ -73,8 +71,7 @@
                 logLine(result.message, 'ok');
 
                 if (result.done) {
-                    logLine('Export completado. Descargando...', 'ok');
-                    // Trigger download
+                    logLine(t.exportDone, 'ok');
                     const a = document.createElement('a');
                     a.href = result.download_url + '&_wpnonce=' + cfg.nonce;
                     a.download = '';
@@ -85,29 +82,26 @@
                 }
             }
         } catch (e) {
-            logLine('ERROR: ' + e.message, 'err');
+            logLine(t.errorLabel + ': ' + e.message, 'err');
         }
 
         btn.disabled = false;
-        btn.textContent = 'Exportar Backup';
+        btn.textContent = t.exportBtn;
     }
-
-    // ── Import ─────────────────────────────────────────
 
     let importJobId = null;
 
     async function handleImportFile(file) {
         if (!file || !file.name.endsWith('.zip')) {
-            logLine('Solo archivos .zip son aceptados', 'err');
+            logLine(t.onlyZip, 'err');
             return;
         }
 
         importJobId = generateJobId();
         showEl('ago-import-progress');
-        logLine('Subiendo: ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)', 'info');
+        logLine(t.uploadingFile + ' ' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)', 'info');
 
         try {
-            // Chunked upload
             const chunkSize = cfg.maxUploadChunk;
             const totalChunks = Math.ceil(file.size / chunkSize);
 
@@ -120,33 +114,38 @@
                     chunk: base64,
                     total_chunks: totalChunks
                 });
-                updateProgress('ago-import-bar', 'ago-import-status', i + 1, totalChunks, 'Subiendo...');
+                updateProgress('ago-import-bar', 'ago-import-status', i + 1, totalChunks, t.uploading);
             }
 
-            logLine('Upload completo. Leyendo manifest...', 'info');
+            logLine(t.uploadComplete, 'info');
 
-            // Start import (read manifest)
             const info = await postJSON('/import/start', { job_id: importJobId });
             const m = info.manifest;
 
-            // Show manifest info
             const manifestDiv = document.getElementById('ago-import-manifest');
-            manifestDiv.innerHTML = [
-                '<p><strong>Origen:</strong> ' + (m.site_url || 'N/A') + '</p>',
-                '<p><strong>WordPress:</strong> ' + (m.wp_version || '?') + ' | <strong>PHP:</strong> ' + (m.php_version || '?') + '</p>',
-                '<p><strong>Tablas:</strong> ' + (m.tables ? m.tables.length : '?') + '</p>',
-                '<p><strong>Theme:</strong> ' + (m.active_theme || '?') + '</p>',
-                '<p><strong>Fecha backup:</strong> ' + (m.timestamp || '?') + '</p>',
-            ].join('');
+            const p = (label, value) => {
+                const el = document.createElement('p');
+                const strong = document.createElement('strong');
+                strong.textContent = label + ' ';
+                el.appendChild(strong);
+                el.appendChild(document.createTextNode(value));
+                return el;
+            };
+            manifestDiv.textContent = '';
+            manifestDiv.appendChild(p(t.origin, m.site_url || 'N/A'));
+            manifestDiv.appendChild(p('WordPress:', (m.wp_version || '?') + ' | PHP: ' + (m.php_version || '?')));
+            manifestDiv.appendChild(p(t.tables, m.tables ? String(m.tables.length) : '?'));
+            manifestDiv.appendChild(p(t.theme, m.active_theme || '?'));
+            manifestDiv.appendChild(p(t.backupDate, m.timestamp || '?'));
 
             showEl('ago-import-info');
             hideEl('ago-import-progress');
             document.getElementById('ago-import-status').textContent = '';
 
-            logLine('Manifest leido. Esperando confirmacion...', 'info');
+            logLine(t.manifestRead, 'info');
 
         } catch (e) {
-            logLine('ERROR: ' + e.message, 'err');
+            logLine(t.errorLabel + ': ' + e.message, 'err');
         }
     }
 
@@ -155,12 +154,12 @@
 
         const confirmBtn = document.getElementById('ago-import-confirm-btn');
         confirmBtn.disabled = true;
-        confirmBtn.textContent = 'Importando...';
+        confirmBtn.textContent = t.importing;
         hideEl('ago-import-info');
         showEl('ago-import-progress');
 
         try {
-            logLine('Importando...', 'info');
+            logLine(t.importing, 'info');
 
             let done = false;
             while (!done) {
@@ -170,25 +169,21 @@
                 done = result.done;
 
                 if (done && result.redirect_url) {
-                    logLine('Importacion completa. Redirigiendo al login...', 'ok');
+                    logLine(t.importDone, 'ok');
                     setTimeout(() => { window.location.href = result.redirect_url; }, 2000);
                 }
             }
         } catch (e) {
-            logLine('ERROR: ' + e.message, 'err');
+            logLine(t.errorLabel + ': ' + e.message, 'err');
             confirmBtn.disabled = false;
-            confirmBtn.textContent = 'Confirmar e Importar';
+            confirmBtn.textContent = t.importBtn;
         }
     }
 
-    // ── Event Bindings ─────────────────────────────────
-
     document.addEventListener('DOMContentLoaded', function () {
-        // Export button
         const exportBtn = document.getElementById('ago-export-btn');
         if (exportBtn) exportBtn.addEventListener('click', startExport);
 
-        // Import dropzone
         const dropzone = document.getElementById('ago-import-dropzone');
         const fileInput = document.getElementById('ago-import-file');
 
@@ -217,7 +212,6 @@
             });
         }
 
-        // Confirm checkbox
         const confirmCheck = document.getElementById('ago-import-confirm-check');
         const confirmBtn = document.getElementById('ago-import-confirm-btn');
 

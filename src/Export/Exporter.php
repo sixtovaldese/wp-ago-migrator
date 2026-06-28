@@ -61,7 +61,7 @@ class Exporter {
             'steps'        => $steps,
         ];
 
-        set_transient( 'ago_migrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+        set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
 
         return [
             'job_id'      => $job_id,
@@ -70,7 +70,7 @@ class Exporter {
     }
 
     public function step( string $job_id ): array {
-        $job = get_transient( 'ago_migrator_job_' . $job_id );
+        $job = get_transient( 'agomigrator_job_' . $job_id );
         if ( ! $job ) {
             return [ 'done' => true, 'error' => 'Job not found or expired' ];
         }
@@ -92,44 +92,44 @@ class Exporter {
                     'manifest.json',
                     $job['zip_path']
                 );
-                $message = 'Manifest generado';
+                $message = 'Manifest generated';
                 break;
 
             case 'db_header':
                 $this->db->write_header( $job['sql_file'] );
-                $message = 'Iniciando dump SQL';
+                $message = 'Starting SQL dump';
                 break;
 
             case 'db_table':
                 $this->db->dump_table( $step['table'], $job['sql_file'] );
-                $message = 'Tabla: ' . $step['table'];
+                $message = 'Table: ' . $step['table'];
                 break;
 
             case 'db_footer':
                 $this->db->write_footer( $job['sql_file'] );
-                $message = 'SQL dump completado';
+                $message = 'SQL dump completed';
                 break;
 
             case 'db_to_zip':
                 $this->files->add_file_to_zip( $job['sql_file'], 'database.sql', $job['zip_path'] );
-                $message = 'SQL agregado al ZIP';
+                $message = 'SQL added to ZIP';
                 break;
 
             case 'files':
                 $count   = $this->files->add_directory_to_zip( $step['subdir'], $job['zip_path'] );
-                $message = "wp-content/{$step['subdir']}/ ($count archivos)";
+                $message = "wp-content/{$step['subdir']}/ ($count files)";
                 break;
 
             case 'cleanup':
                 $this->cleanup_tmp( $job['tmp_dir'] );
-                $message = 'Limpieza completada';
+                $message = 'Cleanup completed';
                 break;
         }
 
         $job['current_step'] = $idx + 1;
         $done                = $job['current_step'] >= count( $job['steps'] );
 
-        set_transient( 'ago_migrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+        set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
 
         $result = [
             'step'     => $idx + 1,
@@ -150,7 +150,7 @@ class Exporter {
         global $wpdb;
         return [
             'generator'      => 'ago-migrator',
-            'version'        => AGO_MIGRATOR_VERSION,
+            'version'        => AGOMIGRATOR_VERSION,
             'timestamp'      => gmdate( 'c' ),
             'site_url'       => site_url(),
             'home_url'       => home_url(),

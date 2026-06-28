@@ -92,7 +92,7 @@ class Importer {
             'steps'        => $steps,
         ];
 
-        set_transient( 'ago_migrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+        set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
 
         return [
             'manifest'    => $manifest,
@@ -101,7 +101,7 @@ class Importer {
     }
 
     public function step( string $job_id ): array {
-        $job = get_transient( 'ago_migrator_job_' . $job_id );
+        $job = get_transient( 'agomigrator_job_' . $job_id );
         if ( ! $job ) {
             return [ 'done' => true, 'error' => 'Job not found or expired' ];
         }
@@ -130,28 +130,28 @@ class Importer {
                     'wp-content/' . $subdir . '/',
                     $target_dir
                 );
-                $message = "Extraido wp-content/$subdir/ ($count archivos)";
+                $message = "Extracted wp-content/$subdir/ ($count files)";
                 break;
 
             case 'import_sql':
                 $result  = $this->db->import_sql( $job['sql_file'] );
-                $message = "SQL importado: {$result['executed']} sentencias";
+                $message = "SQL imported: {$result['executed']} statements";
                 if ( ! empty( $result['errors'] ) ) {
-                    $message .= ' (' . count( $result['errors'] ) . ' errores)';
+                    $message .= ' (' . count( $result['errors'] ) . ' errors)';
                 }
                 break;
 
             case 'search_replace':
                 $sr    = new SearchReplace( $job['manifest'] );
                 $count = $sr->process_table( $step['table'] );
-                $message = "Search-replace: {$step['table']} ($count reemplazos)";
+                $message = "Search-replace: {$step['table']} ($count replacements)";
                 break;
 
             case 'cleanup':
                 @wp_delete_file( $job['sql_file'] );
                 @wp_delete_file( $job['zip_path'] );
-                delete_transient( 'ago_migrator_job_' . $job_id );
-                $message = 'Importacion completada';
+                delete_transient( 'agomigrator_job_' . $job_id );
+                $message = 'Import completed';
                 break;
         }
 
@@ -159,7 +159,7 @@ class Importer {
         $done                = $job['current_step'] >= count( $job['steps'] );
 
         if ( ! $done ) {
-            set_transient( 'ago_migrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+            set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
         }
 
         $result = [

@@ -4,7 +4,8 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 global $wpdb;
 
 // Delete job transients
-$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_ago_migrator_job_%' OR option_name LIKE '_transient_timeout_ago_migrator_job_%'" );
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_agomigrator_job_%' OR option_name LIKE '_transient_timeout_agomigrator_job_%'" );
 
 // Remove temp directory
 $tmp_dir = WP_CONTENT_DIR . '/ago-migrator-tmp';

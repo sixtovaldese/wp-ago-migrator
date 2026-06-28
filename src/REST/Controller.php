@@ -90,7 +90,7 @@ class Controller {
     }
 
     public function export_download( \WP_REST_Request $request ): void {
-        $job = get_transient( 'ago_migrator_job_' . $request['job_id'] );
+        $job = get_transient( 'agomigrator_job_' . $request['job_id'] );
 
         if ( ! $job || ! file_exists( $job['zip_path'] ) ) {
             status_header( 404 );
@@ -115,7 +115,7 @@ class Controller {
 
         // Cleanup after download
         @wp_delete_file( $job['zip_path'] );
-        delete_transient( 'ago_migrator_job_' . $request['job_id'] );
+        delete_transient( 'agomigrator_job_' . $request['job_id'] );
 
         exit;
     }

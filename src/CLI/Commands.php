@@ -19,8 +19,8 @@ class Commands {
      *
      * ## EXAMPLES
      *
-     *     wp ago export
-     *     wp ago export --output=/tmp/backup.zip
+     *     wp agomigrator export
+     *     wp agomigrator export --output=/tmp/backup.zip
      *
      * @when after_wp_load
      */
@@ -50,7 +50,7 @@ class Commands {
         $progress->finish();
 
         // Get zip path from job
-        $job = get_transient( 'ago_migrator_job_' . $job_id );
+        $job = get_transient( 'agomigrator_job_' . $job_id );
 
         if ( $job && file_exists( $job['zip_path'] ) ) {
             $output = $assoc_args['output'] ?? $job['zip_path'];
@@ -64,7 +64,7 @@ class Commands {
             \WP_CLI::error( 'Export failed: ZIP not found' );
         }
 
-        delete_transient( 'ago_migrator_job_' . $job_id );
+        delete_transient( 'agomigrator_job_' . $job_id );
     }
 
     /**
@@ -80,8 +80,8 @@ class Commands {
      *
      * ## EXAMPLES
      *
-     *     wp ago import backup.zip
-     *     wp ago import backup.zip --yes
+     *     wp agomigrator import backup.zip
+     *     wp agomigrator import backup.zip --yes
      *
      * @when after_wp_load
      */
