@@ -9,7 +9,7 @@ use AgoLab\Migrator\Import\Importer;
 
 class Controller {
 
-    private const NS = 'ago-migrator/v1';
+    private const NS = 'agomigrator/v1';
 
     public function register_routes(): void {
         // Export

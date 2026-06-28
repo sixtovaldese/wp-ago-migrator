@@ -89,7 +89,7 @@ class Plugin {
         );
 
         wp_localize_script( 'agomigrator-admin', 'agomigratorMigrator', [
-            'restUrl'        => rest_url( 'ago-migrator/v1' ),
+            'restUrl'        => rest_url( 'agomigrator/v1' ),
             'nonce'          => wp_create_nonce( 'wp_rest' ),
             'maxUploadChunk' => 512 * 1024,
             'i18n'           => [

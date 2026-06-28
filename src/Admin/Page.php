@@ -87,6 +87,12 @@ class Page {
                                 <?php esc_html_e( 'Documentation', 'ago-migrator' ); ?>
                             </a>
                         </p>
+                        <p style="margin-top:6px">
+                            <a href="https://soporte.ago.cl" target="_blank" rel="noopener">
+                                <span class="dashicons dashicons-sos" style="vertical-align:middle;margin-right:4px"></span>
+                                <?php esc_html_e( 'Support', 'ago-migrator' ); ?>
+                            </a>
+                        </p>
                     </div>
 
                     <div class="card ago-card ago-donation">

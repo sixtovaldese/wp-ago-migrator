@@ -140,7 +140,7 @@ class Exporter {
         ];
 
         if ( $done ) {
-            $result['download_url'] = rest_url( 'ago-migrator/v1/export/download?job_id=' . $job_id );
+            $result['download_url'] = rest_url( 'agomigrator/v1/export/download?job_id=' . $job_id );
         }
 
         return $result;
