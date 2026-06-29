@@ -16,16 +16,11 @@ class Plugin {
     }
 
     private function __construct() {
-        add_action( 'init', [ $this, 'load_textdomain' ] );
         add_action( 'admin_menu', [ $this, 'register_admin_menu' ] );
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 
         register_activation_hook( AGOMIGRATOR_FILE, [ $this, 'activate' ] );
-    }
-
-    public function load_textdomain(): void {
-        load_plugin_textdomain( 'ago-migrator', false, dirname( plugin_basename( AGOMIGRATOR_FILE ) ) . '/languages' );
     }
 
     public function activate(): void {

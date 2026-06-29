@@ -9,6 +9,7 @@
  * Author URI:  https://ago.cl/
  * License:     GPL-2.0-or-later
  * Text Domain: ago-migrator
+ * Domain Path: /languages
  */
 
 defined( 'ABSPATH' ) || exit;
