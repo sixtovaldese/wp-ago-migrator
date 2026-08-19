@@ -4,9 +4,13 @@ namespace AgoLab\Migrator\Import;
 
 defined( 'ABSPATH' ) || exit;
 
+use AgoLab\Migrator\Storage;
 
-// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_fopen,WordPress.WP.AlternativeFunctions.file_system_operations_fclose,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents,WordPress.WP.AlternativeFunctions.file_system_operations_unlink,WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.Security.EscapeOutput.ExceptionNotEscaped
-// Reason: WordPress migrator needs streaming file IO + dynamic table names for SQL dump/load. WP_Filesystem cannot stream large files.
+/*
+ * Chunk uploads are appended to a single file as they arrive, which
+ * WP_Filesystem cannot do without holding the whole archive in memory.
+ */
+// phpcs:disable WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 class Importer {
 
     private Files $files;
@@ -18,12 +22,20 @@ class Importer {
     }
 
     public function receive_chunk( string $job_id, int $chunk_index, string $chunk_data, int $total_chunks ): array {
-        $tmp_dir = WP_CONTENT_DIR . '/ago-migrator-tmp';
-        wp_mkdir_p( $tmp_dir );
+        $job_id = Storage::job_id( $job_id );
+        if ( '' === $job_id ) {
+            throw new \RuntimeException( 'Invalid job id' );
+        }
 
-        $part_file = $tmp_dir . '/' . $job_id . '.zip.part';
+        if ( 0 === $chunk_index ) {
+            // A fresh upload starts clean, and stale archives go away with it.
+            Storage::purge_expired();
+            Storage::purge_job( $job_id );
+        }
 
-        // Decode and append
+        $job_dir   = Storage::job_dir( $job_id );
+        $part_file = $job_dir . '/upload.zip.part';
+
         $decoded = base64_decode( $chunk_data, true );
         if ( false === $decoded ) {
             throw new \RuntimeException( 'Invalid base64 data' );
@@ -31,10 +43,9 @@ class Importer {
 
         file_put_contents( $part_file, $decoded, FILE_APPEND | LOCK_EX );
 
-        // If last chunk, finalize
         if ( $chunk_index >= $total_chunks - 1 ) {
-            $zip_file = $tmp_dir . '/' . $job_id . '.zip';
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
+            $zip_file = $job_dir . '/upload.zip';
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic move of a local temporary file; WP_Filesystem has no atomic equivalent.
             rename( $part_file, $zip_file );
         }
 
@@ -46,19 +57,24 @@ class Importer {
     }
 
     public function start( string $job_id ): array {
-        $zip_path = WP_CONTENT_DIR . '/ago-migrator-tmp/' . $job_id . '.zip';
+        $job_id = Storage::job_id( $job_id );
+        if ( '' === $job_id ) {
+            throw new \RuntimeException( 'Invalid job id' );
+        }
+
+        $job_dir  = Storage::job_dir( $job_id );
+        $zip_path = $job_dir . '/upload.zip';
 
         if ( ! file_exists( $zip_path ) ) {
-            throw new \RuntimeException( 'ZIP file not found' );
+            throw new \RuntimeException( 'Backup archive not found' );
         }
 
         $manifest = $this->files->read_manifest( $zip_path );
-        if ( ! $manifest ) {
-            throw new \RuntimeException( 'Invalid backup: manifest.json not found in ZIP' );
+        if ( ! $manifest || ( $manifest['generator'] ?? '' ) !== 'ago-migrator' ) {
+            throw new \RuntimeException( 'Invalid backup: this archive was not produced by aGo Migrator' );
         }
 
-        // Extract SQL to temp file for analysis
-        $sql_file = WP_CONTENT_DIR . '/ago-migrator-tmp/' . $job_id . '.sql';
+        $sql_file = $job_dir . '/database.sql';
         $this->files->extract_sql( $zip_path, $sql_file );
 
         $tables = $this->db->get_tables_from_sql( $sql_file );
@@ -92,7 +108,8 @@ class Importer {
             'steps'        => $steps,
         ];
 
-        set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+        set_transient( 'agomigrator_job_' . $job_id, $job, Storage::TTL );
+        wp_schedule_single_event( time() + Storage::TTL, Storage::PURGE_HOOK, [ $job_id ] );
 
         return [
             'manifest'    => $manifest,
@@ -101,6 +118,11 @@ class Importer {
     }
 
     public function step( string $job_id ): array {
+        $job_id = Storage::job_id( $job_id );
+        if ( '' === $job_id ) {
+            return [ 'done' => true, 'error' => 'Invalid job id' ];
+        }
+
         $job = get_transient( 'agomigrator_job_' . $job_id );
         if ( ! $job ) {
             return [ 'done' => true, 'error' => 'Job not found or expired' ];
@@ -136,21 +158,22 @@ class Importer {
             case 'import_sql':
                 $result  = $this->db->import_sql( $job['sql_file'] );
                 $message = "SQL imported: {$result['executed']} statements";
-                if ( ! empty( $result['errors'] ) ) {
-                    $message .= ' (' . count( $result['errors'] ) . ' errors)';
+                if ( $result['skipped'] > 0 ) {
+                    $message .= ", {$result['skipped']} not allowed and skipped";
+                }
+                if ( $result['failed'] > 0 ) {
+                    $message .= ", {$result['failed']} failed";
                 }
                 break;
 
             case 'search_replace':
-                $sr    = new SearchReplace( $job['manifest'] );
-                $count = $sr->process_table( $step['table'] );
+                $sr      = new SearchReplace( $job['manifest'] );
+                $count   = $sr->process_table( $step['table'] );
                 $message = "Search-replace: {$step['table']} ($count replacements)";
                 break;
 
             case 'cleanup':
-                @wp_delete_file( $job['sql_file'] );
-                @wp_delete_file( $job['zip_path'] );
-                delete_transient( 'agomigrator_job_' . $job_id );
+                Storage::purge_job( $job_id );
                 $message = 'Import completed';
                 break;
         }
@@ -159,7 +182,7 @@ class Importer {
         $done                = $job['current_step'] >= count( $job['steps'] );
 
         if ( ! $done ) {
-            set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+            set_transient( 'agomigrator_job_' . $job_id, $job, Storage::TTL );
         }
 
         $result = [

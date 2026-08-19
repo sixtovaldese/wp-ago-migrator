@@ -5,7 +5,7 @@ Tags: migration, export, import, backup, transfer
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,13 +51,34 @@ Yes. The plugin registers an `agomigrator` WP-CLI command for export and import.
 
 == External services ==
 
-This plugin does not connect to any external service. The archive is generated and read entirely on your own server. The donation links and the aGo Lab link in the admin page point to PayPal and ago.cl, opened only when the user clicks them.
+This plugin does not connect to any external service. Nothing is sent anywhere: the archive is generated and read entirely on your own server, and the plugin makes no outbound requests of its own.
+
+The admin page does contain links that open in a new tab only when you click them. No script, style, font or image is ever loaded from any of these sites:
+
+* ago.cl, plugin documentation and the aGo Lab site (https://ago.cl/).
+* wordpress.org, the support forum for this plugin, the "Moving WordPress" guide and the "Changing the site URL" guide (https://wordpress.org/).
+* PageSpeed Insights, offered as a way to compare your site before and after a move (https://pagespeed.web.dev/).
+* PayPal, the voluntary donation links (https://paypal.me/).
 
 == Privacy ==
 
 The plugin processes your own site data locally to build and restore the archive. It sends no data to third parties. It stores short-lived job transients and a temporary working directory in wp-content; on uninstall, those transients and the temporary directory are removed.
 
 == Changelog ==
+
+= 1.0.1 =
+* Security: the working directory is created on demand and always carries its server-level denial files, instead of relying on activation having run.
+* Security: each backup is written inside a folder whose name is not guessable, so an archive cannot be located by trying URLs.
+* Security: archives are deleted after download, by a scheduled cleanup, and whenever a new job starts. A database dump is no longer left on disk when a download is abandoned.
+* Security: job identifiers are validated against a strict allow list before they are used to build a filesystem path.
+* Security: a restore only runs schema and data statements from an allow list, so a tampered archive cannot reach other database commands.
+* Security: archive entries with traversal segments, absolute paths, drive letters or backslashes are refused, and every write is confirmed to land inside its destination directory.
+* Security: serialized objects are left untouched during search-replace rather than being unserialized.
+* Security: table names are verified against the live schema and all values are escaped through the WordPress database API.
+* Fixed: the activation routine never ran, which left the working directory without its protection files.
+* Fixed: an SQL value containing a semicolon and a line break no longer splits a statement in two during import.
+* Fixed: error messages no longer include server paths or dump contents.
+* Added: Quick links and Other aGo Lab plugins cards in the sidebar, both fully translated.
 
 = 1.0.0 =
 * Initial release.
@@ -68,6 +89,9 @@ The plugin processes your own site data locally to build and restore the archive
 * English, Spanish and Brazilian Portuguese included.
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+Recommended for every install: hardens where backups are stored, guarantees they are deleted, and restricts what a restore is allowed to execute.
 
 = 1.0.0 =
 Initial release.

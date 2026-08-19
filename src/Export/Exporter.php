@@ -4,9 +4,8 @@ namespace AgoLab\Migrator\Export;
 
 defined( 'ABSPATH' ) || exit;
 
+use AgoLab\Migrator\Storage;
 
-// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_fopen,WordPress.WP.AlternativeFunctions.file_system_operations_fclose,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents,WordPress.WP.AlternativeFunctions.file_system_operations_unlink,WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.Security.EscapeOutput.ExceptionNotEscaped
-// Reason: WordPress migrator needs streaming file IO + dynamic table names for SQL dump/load. WP_Filesystem cannot stream large files.
 class Exporter {
 
     private Database $db;
@@ -18,9 +17,11 @@ class Exporter {
     }
 
     public function start(): array {
+        // Never leave an earlier dump behind: it contains the whole database.
+        Storage::purge_expired();
+
         $job_id  = 'exp_' . wp_generate_password( 12, false );
-        $tmp_dir = WP_CONTENT_DIR . '/ago-migrator-tmp/' . $job_id;
-        wp_mkdir_p( $tmp_dir );
+        $job_dir = Storage::job_dir( $job_id );
 
         $site_name = sanitize_file_name( get_bloginfo( 'name' ) );
         $site_name = substr( preg_replace( '/[^a-z0-9]/i', '', $site_name ), 0, 10 );
@@ -28,8 +29,14 @@ class Exporter {
             $site_name = 'site';
         }
         $timestamp = gmdate( 'Ymd-His' );
-        $zip_path  = WP_CONTENT_DIR . '/ago-migrator-tmp/' . strtolower( $site_name ) . '-' . $timestamp . '.zip';
-        $sql_file  = $tmp_dir . '/database.sql';
+
+        /*
+         * The archive lives inside the job directory, whose name carries 12
+         * random characters. That is the layer which holds on servers that
+         * ignore .htaccess, so the path must never become predictable.
+         */
+        $zip_path = $job_dir . '/' . strtolower( $site_name ) . '-' . $timestamp . '.zip';
+        $sql_file = $job_dir . '/database.sql';
 
         $tables  = $this->db->get_all_tables();
         $subdirs = $this->files->get_content_subdirs();
@@ -54,14 +61,17 @@ class Exporter {
 
         $job = [
             'job_id'       => $job_id,
-            'tmp_dir'      => $tmp_dir,
+            'tmp_dir'      => $job_dir,
             'zip_path'     => $zip_path,
             'sql_file'     => $sql_file,
             'current_step' => 0,
             'steps'        => $steps,
         ];
 
-        set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+        set_transient( 'agomigrator_job_' . $job_id, $job, Storage::TTL );
+
+        // Backstop deletion for the case where the archive is never downloaded.
+        wp_schedule_single_event( time() + Storage::TTL, Storage::PURGE_HOOK, [ $job_id ] );
 
         return [
             'job_id'      => $job_id,
@@ -70,6 +80,11 @@ class Exporter {
     }
 
     public function step( string $job_id ): array {
+        $job_id = Storage::job_id( $job_id );
+        if ( '' === $job_id ) {
+            return [ 'done' => true, 'error' => 'Invalid job id' ];
+        }
+
         $job = get_transient( 'agomigrator_job_' . $job_id );
         if ( ! $job ) {
             return [ 'done' => true, 'error' => 'Job not found or expired' ];
@@ -121,7 +136,11 @@ class Exporter {
                 break;
 
             case 'cleanup':
-                $this->cleanup_tmp( $job['tmp_dir'] );
+                // Only the loose dump is removed here. The archive stays until
+                // it is downloaded, then Storage::purge_job() takes the folder.
+                if ( ! empty( $job['sql_file'] ) && file_exists( $job['sql_file'] ) ) {
+                    wp_delete_file( $job['sql_file'] );
+                }
                 $message = 'Cleanup completed';
                 break;
         }
@@ -129,7 +148,7 @@ class Exporter {
         $job['current_step'] = $idx + 1;
         $done                = $job['current_step'] >= count( $job['steps'] );
 
-        set_transient( 'agomigrator_job_' . $job_id, $job, HOUR_IN_SECONDS );
+        set_transient( 'agomigrator_job_' . $job_id, $job, Storage::TTL );
 
         $result = [
             'step'     => $idx + 1,
@@ -165,19 +184,5 @@ class Exporter {
             'active_theme'   => get_stylesheet(),
             'multisite'      => is_multisite(),
         ];
-    }
-
-    private function cleanup_tmp( string $dir ): void {
-        if ( ! is_dir( $dir ) ) {
-            return;
-        }
-        $it    = new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS );
-        $files = new \RecursiveIteratorIterator( $it, \RecursiveIteratorIterator::CHILD_FIRST );
-        foreach ( $files as $file ) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
-            $file->isDir() ? rmdir( $file->getPathname() ) : wp_delete_file( $file->getPathname() );
-        }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
-        rmdir( $dir );
     }
 }

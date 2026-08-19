@@ -69,6 +69,16 @@ class Page {
                 <div class="ago-sidebar">
 
                     <div class="card ago-card">
+                        <h3><?php esc_html_e( 'Quick links', 'ago-migrator' ); ?></h3>
+                        <ul class="ago-features" style="list-style:none;padding:0;margin:0">
+                            <li><a href="https://ago.cl/herramientas/wordpress/ago-migrator/docs" target="_blank" rel="noopener"><?php esc_html_e( 'Documentation', 'ago-migrator' ); ?></a></li>
+                            <li><a href="https://wordpress.org/documentation/article/moving-wordpress/" target="_blank" rel="noopener"><?php esc_html_e( 'Moving WordPress, official guide', 'ago-migrator' ); ?></a></li>
+                            <li><a href="https://wordpress.org/documentation/article/changing-the-site-url/" target="_blank" rel="noopener"><?php esc_html_e( 'Changing the site URL', 'ago-migrator' ); ?></a></li>
+                            <li><a href="https://pagespeed.web.dev/" target="_blank" rel="noopener"><?php esc_html_e( 'Compare speed before and after the move', 'ago-migrator' ); ?></a></li>
+                        </ul>
+                    </div>
+
+                    <div class="card ago-card">
                         <h3><?php esc_html_e( 'About', 'ago-migrator' ); ?></h3>
                         <p style="font-size:13px;color:#666">
                             <?php esc_html_e( 'Full-site backup & migration plugin. Export everything, import anywhere. No limits, no subscriptions.', 'ago-migrator' ); ?>
@@ -80,18 +90,28 @@ class Page {
                             <li><?php esc_html_e( 'Serialization-safe URL replace', 'ago-migrator' ); ?></li>
                             <li><?php esc_html_e( 'Standard ZIP format', 'ago-migrator' ); ?></li>
                             <li><?php esc_html_e( 'WP-CLI support', 'ago-migrator' ); ?></li>
+                            <li><?php esc_html_e( 'English, Spanish, Brazilian Portuguese', 'ago-migrator' ); ?></li>
+                            <li><?php esc_html_e( 'Completely free, no Pro tier', 'ago-migrator' ); ?></li>
                         </ul>
                         <p style="margin-top:12px">
-                            <a href="https://ago.cl/herramientas/wordpress/ago-migrator/docs" target="_blank" rel="noopener">
-                                <span class="dashicons dashicons-book" style="vertical-align:middle;margin-right:4px"></span>
-                                <?php esc_html_e( 'Documentation', 'ago-migrator' ); ?>
-                            </a>
-                        </p>
-                        <p style="margin-top:6px">
-                            <a href="https://soporte.ago.cl" target="_blank" rel="noopener">
+                            <a href="https://wordpress.org/support/plugin/ago-migrator/" target="_blank" rel="noopener">
                                 <span class="dashicons dashicons-sos" style="vertical-align:middle;margin-right:4px"></span>
                                 <?php esc_html_e( 'Support', 'ago-migrator' ); ?>
                             </a>
+                        </p>
+                    </div>
+
+                    <div class="card ago-card">
+                        <h3 style="margin-top:0"><?php esc_html_e( 'Other aGo Lab plugins', 'ago-migrator' ); ?></h3>
+                        <p style="font-size:13px;color:#666;margin-top:0"><?php esc_html_e( 'Free WordPress plugins from the same team. No upsell pressure.', 'ago-migrator' ); ?></p>
+                        <ul class="ago-features">
+                            <li><strong>aGo Mail Pilot</strong>, <?php esc_html_e( 'Guided SMTP email delivery.', 'ago-migrator' ); ?></li>
+                            <li><strong>aGo AI Chatbot</strong>, <?php esc_html_e( 'AI customer support widget for your site.', 'ago-migrator' ); ?></li>
+                            <li><strong>aGo Legal</strong>, <?php esc_html_e( 'GDPR / LGPD / Chile Law 21.719 compliance toolkit.', 'ago-migrator' ); ?></li>
+                            <li><strong>aGo Access</strong>, <?php esc_html_e( 'Accessibility toolbar and automatic fixes.', 'ago-migrator' ); ?></li>
+                        </ul>
+                        <p>
+                            <a href="https://ago.cl/herramientas/" target="_blank" rel="noopener" class="button button-secondary" style="width:100%;text-align:center"><?php esc_html_e( 'Browse aGo Lab plugins', 'ago-migrator' ); ?></a>
                         </p>
                     </div>
 

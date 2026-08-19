@@ -6,6 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
 use AgoLab\Migrator\Export\Exporter;
 use AgoLab\Migrator\Import\Importer;
+use AgoLab\Migrator\Storage;
 
 class Commands {
 
@@ -33,7 +34,6 @@ class Commands {
         \WP_CLI::log( "Job: $job_id | Steps: $total" );
         $progress = \WP_CLI\Utils\make_progress_bar( 'Exporting', $total );
 
-        $download_url = null;
         for ( $i = 0; $i < $total; $i++ ) {
             $result = $exporter->step( $job_id );
             $progress->tick();
@@ -43,28 +43,44 @@ class Commands {
             }
 
             if ( $result['done'] ) {
-                $download_url = $result['download_url'] ?? null;
                 break;
             }
         }
         $progress->finish();
 
-        // Get zip path from job
         $job = get_transient( 'agomigrator_job_' . $job_id );
 
-        if ( $job && file_exists( $job['zip_path'] ) ) {
-            $output = $assoc_args['output'] ?? $job['zip_path'];
-            if ( $output !== $job['zip_path'] ) {
-                copy( $job['zip_path'], $output );
-                wp_delete_file( $job['zip_path'] );
-            }
-            $size = size_format( filesize( $output ) );
-            \WP_CLI::success( "Backup saved: $output ($size)" );
-        } else {
-            \WP_CLI::error( 'Export failed: ZIP not found' );
+        if ( ! $job || ! file_exists( $job['zip_path'] ) ) {
+            Storage::purge_job( $job_id );
+            \WP_CLI::error( 'Export failed: the archive was not created' );
         }
 
-        delete_transient( 'agomigrator_job_' . $job_id );
+        /*
+         * Without --output the archive lands in the directory the command was
+         * run from, the way any other dump tool behaves. It is never left in
+         * the plugin working directory, which gets purged.
+         */
+        $output = $assoc_args['output'] ?? rtrim( (string) getcwd(), '/\\' ) . '/' . basename( $job['zip_path'] );
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Local move of a freshly written archive; WP_Filesystem would prompt for credentials in CLI.
+        if ( ! copy( $job['zip_path'], $output ) ) {
+            Storage::purge_job( $job_id );
+            \WP_CLI::error( "Could not write the archive to: $output" );
+        }
+
+        $size = size_format( (int) filesize( $output ) );
+
+        // A full database dump inside the document root is reachable over HTTP.
+        $resolved = str_replace( '\\', '/', (string) realpath( $output ) );
+        $docroot  = rtrim( str_replace( '\\', '/', (string) realpath( ABSPATH ) ), '/' );
+        if ( '' !== $docroot && str_starts_with( $resolved, $docroot . '/' ) ) {
+            \WP_CLI::warning( 'The archive is inside the site document root and may be downloadable. Move it somewhere outside the web server.' );
+        }
+
+        wp_clear_scheduled_hook( Storage::PURGE_HOOK, [ $job_id ] );
+        Storage::purge_job( $job_id );
+
+        \WP_CLI::success( "Backup saved: $output ($size)" );
     }
 
     /**
@@ -91,12 +107,15 @@ class Commands {
             \WP_CLI::error( "File not found: $file" );
         }
 
-        // Copy to tmp dir
         $job_id   = 'imp_' . wp_generate_password( 12, false );
-        $tmp_dir  = WP_CONTENT_DIR . '/ago-migrator-tmp';
-        wp_mkdir_p( $tmp_dir );
-        $zip_path = $tmp_dir . '/' . $job_id . '.zip';
-        copy( $file, $zip_path );
+        $job_dir  = Storage::job_dir( $job_id );
+        $zip_path = $job_dir . '/upload.zip';
+
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- Local copy into the plugin working directory; WP_Filesystem would prompt for credentials in CLI.
+        if ( ! copy( $file, $zip_path ) ) {
+            Storage::purge_job( $job_id );
+            \WP_CLI::error( 'Could not stage the archive for import' );
+        }
 
         $importer = new Importer();
         $info     = $importer->start( $job_id );
@@ -105,7 +124,7 @@ class Commands {
             $m = $info['manifest'];
             \WP_CLI::log( "Source: {$m['site_url']}" );
             \WP_CLI::log( "WP: {$m['wp_version']} | PHP: {$m['php_version']}" );
-            \WP_CLI::log( "Tables: " . count( $m['tables'] ?? [] ) );
+            \WP_CLI::log( 'Tables: ' . count( $m['tables'] ?? [] ) );
         }
 
         if ( empty( $assoc_args['yes'] ) ) {
@@ -120,6 +139,7 @@ class Commands {
             $progress->tick();
 
             if ( ! empty( $result['error'] ) ) {
+                Storage::purge_job( $job_id );
                 \WP_CLI::error( $result['error'] );
             }
 
@@ -128,6 +148,9 @@ class Commands {
             }
         }
         $progress->finish();
+
+        wp_clear_scheduled_hook( Storage::PURGE_HOOK, [ $job_id ] );
+        Storage::purge_job( $job_id );
 
         \WP_CLI::success( 'Import complete. Please re-login.' );
     }

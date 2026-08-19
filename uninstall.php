@@ -3,19 +3,35 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 global $wpdb;
 
-// Delete job transients
+/*
+ * Job transients are short-lived, but a site uninstalling the plugin should not
+ * be left with rows behind. The pattern is fixed, and prepare() keeps the query
+ * parameterised anyway.
+ */
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_agomigrator_job_%' OR option_name LIKE '_transient_timeout_agomigrator_job_%'" );
+$wpdb->query(
+    $wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+        $wpdb->esc_like( '_transient_agomigrator_job_' ) . '%',
+        $wpdb->esc_like( '_transient_timeout_agomigrator_job_' ) . '%'
+    )
+);
 
-// Remove temp directory
-$tmp_dir = WP_CONTENT_DIR . '/ago-migrator-tmp';
-if ( is_dir( $tmp_dir ) ) {
-    $it    = new RecursiveDirectoryIterator( $tmp_dir, FilesystemIterator::SKIP_DOTS );
-    $files = new RecursiveIteratorIterator( $it, RecursiveIteratorIterator::CHILD_FIRST );
-    foreach ( $files as $file ) {
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
-        $file->isDir() ? rmdir( $file->getPathname() ) : wp_delete_file( $file->getPathname() );
+// Remove the working directory, which may still hold an undownloaded archive.
+$agomigrator_tmp_dir = WP_CONTENT_DIR . '/ago-migrator-tmp';
+if ( is_dir( $agomigrator_tmp_dir ) ) {
+    $agomigrator_items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator( $agomigrator_tmp_dir, FilesystemIterator::SKIP_DOTS ),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ( $agomigrator_items as $agomigrator_item ) {
+        if ( $agomigrator_item->isDir() ) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Uninstall runs without WP_Filesystem credentials.
+            rmdir( $agomigrator_item->getPathname() );
+        } else {
+            wp_delete_file( $agomigrator_item->getPathname() );
+        }
     }
-    // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
-    rmdir( $tmp_dir );
+    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Uninstall runs without WP_Filesystem credentials.
+    rmdir( $agomigrator_tmp_dir );
 }

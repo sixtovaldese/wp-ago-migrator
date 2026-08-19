@@ -4,9 +4,13 @@ namespace AgoLab\Migrator\Import;
 
 defined( 'ABSPATH' ) || exit;
 
-
-// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_fopen,WordPress.WP.AlternativeFunctions.file_system_operations_fclose,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents,WordPress.WP.AlternativeFunctions.file_system_operations_unlink,WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.Security.EscapeOutput.ExceptionNotEscaped
-// Reason: WordPress migrator needs streaming file IO + dynamic table names for SQL dump/load. WP_Filesystem cannot stream large files.
+/*
+ * Rewriting URLs across every table means reading and writing rows directly,
+ * on tables whose names are only known at run time. Those sniffs are silenced.
+ * Identifiers are checked against the live schema, values go through prepare()
+ * and rows are written with $wpdb->update(), so nothing is interpolated raw.
+ */
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 class SearchReplace {
 
     private array $search;
@@ -71,8 +75,20 @@ class SearchReplace {
             return 0;
         }
 
-        // Get text columns
-        $columns = $wpdb->get_results( "DESCRIBE `$table`", ARRAY_A );
+        // The table list comes from the archive, so it is confirmed against
+        // the live schema before its name reaches a query.
+        if ( ! $this->table_exists( $table ) ) {
+            return 0;
+        }
+
+        $quoted = '`' . str_replace( '`', '``', $table ) . '`';
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifier verified by table_exists() and backtick-quoted; SQL placeholders cannot describe identifiers.
+        $columns = $wpdb->get_results( "DESCRIBE $quoted", ARRAY_A );
+        if ( empty( $columns ) ) {
+            return 0;
+        }
+
         $text_cols = [];
         foreach ( $columns as $col ) {
             if ( preg_match( '/char|text|varchar|longtext|mediumtext/i', $col['Type'] ) ) {
@@ -93,24 +109,43 @@ class SearchReplace {
             }
         }
 
-        $replacements = 0;
-        $batch_size   = 500;
-        $offset       = 0;
+        if ( ! $pk ) {
+            return 0;
+        }
 
-        // Build WHERE clause to only fetch rows containing search strings
+        // Only fetch rows that actually contain one of the search strings.
         $like_parts = [];
-        foreach ( $this->search as $s ) {
+        $like_args  = [];
+        foreach ( $this->search as $needle ) {
             foreach ( $text_cols as $col ) {
-                $like_parts[] = "`$col` LIKE '%" . $wpdb->_real_escape( $s ) . "%'";
+                $like_parts[] = '`' . str_replace( '`', '``', $col ) . '` LIKE %s';
+                $like_args[]  = '%' . $wpdb->esc_like( $needle ) . '%';
             }
         }
         $where = implode( ' OR ', $like_parts );
 
+        $replacements = 0;
+        $batch_size   = 500;
+        $offset       = 0;
+
         while ( true ) {
+            /*
+             * $quoted is the table name confirmed by table_exists() and $where is
+             * built only from column names returned by DESCRIBE, each followed by
+             * a %s placeholder. Every search value is bound through prepare().
+             * SQL placeholders cannot stand in for identifiers, and the number of
+             * placeholders is one per column-needle pair, so it is not knowable
+             * statically. Those three sniffs are silenced for this query alone.
+             */
+            // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
             $rows = $wpdb->get_results(
-                "SELECT * FROM `$table` WHERE ($where) LIMIT $batch_size OFFSET $offset",
+                $wpdb->prepare(
+                    "SELECT * FROM $quoted WHERE ($where) LIMIT %d OFFSET %d",
+                    ...array_merge( $like_args, [ $batch_size, $offset ] )
+                ),
                 ARRAY_A
             );
+            // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
 
             if ( empty( $rows ) ) {
                 break;
@@ -129,15 +164,9 @@ class SearchReplace {
                     }
                 }
 
-                if ( ! empty( $updates ) && $pk && isset( $row[ $pk ] ) ) {
-                    $set_parts = [];
-                    foreach ( $updates as $col => $val ) {
-                        $set_parts[] = "`$col` = '" . $wpdb->_real_escape( $val ) . "'";
-                    }
-                    $wpdb->query(
-                        "UPDATE `$table` SET " . implode( ', ', $set_parts ) .
-                        " WHERE `$pk` = '" . $wpdb->_real_escape( $row[ $pk ] ) . "' LIMIT 1"
-                    );
+                if ( ! empty( $updates ) && isset( $row[ $pk ] ) ) {
+                    // $wpdb->update() prepares both the values and the where clause.
+                    $wpdb->update( $table, $updates, [ $pk => $row[ $pk ] ] );
                 }
             }
 
@@ -151,6 +180,16 @@ class SearchReplace {
         return $replacements;
     }
 
+    private function table_exists( string $table ): bool {
+        global $wpdb;
+
+        $found = $wpdb->get_var(
+            $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) )
+        );
+
+        return is_string( $found ) && $found === $table;
+    }
+
     private function apply_replace( string $data ): string {
         foreach ( $this->search as $i => $search ) {
             $data = $this->recursive_unserialize_replace( $search, $this->replace[ $i ], $data );
@@ -161,12 +200,28 @@ class SearchReplace {
     private function recursive_unserialize_replace( string $search, string $replace, mixed $data ): mixed {
         if ( is_string( $data ) ) {
             if ( is_serialized( $data ) ) {
-                $unserialized = @unserialize( $data );
+                /*
+                 * Serialized objects are left exactly as they are. Restoring them
+                 * would run whatever __wakeup or __destruct the archive carries,
+                 * and stripping the classes instead would re-serialize incomplete
+                 * objects and corrupt the value. A missed replacement inside an
+                 * object is recoverable; a mangled option is not.
+                 */
+                if ( self::contains_object( $data ) ) {
+                    return $data;
+                }
+
+                $unserialized = unserialize( $data, [ 'allowed_classes' => false ] );
                 if ( false !== $unserialized ) {
                     $unserialized = $this->recursive_unserialize_replace( $search, $replace, $unserialized );
                     return serialize( $unserialized );
                 }
             }
+
+            /*
+             * Plain strings are safe to rewrite directly. Serialized payloads never
+             * reach this line, so no length prefix can fall out of sync.
+             */
             return str_replace( $search, $replace, $data );
         }
 
@@ -177,13 +232,11 @@ class SearchReplace {
             return $data;
         }
 
-        if ( is_object( $data ) ) {
-            foreach ( $data as $key => $value ) {
-                $data->$key = $this->recursive_unserialize_replace( $search, $replace, $value );
-            }
-            return $data;
-        }
-
         return $data;
+    }
+
+    /** Whether a serialized payload holds an object or enum at any depth. */
+    private static function contains_object( string $data ): bool {
+        return 1 === preg_match( '/(?:^|[;{])[OCE]:\d+:/', $data );
     }
 }

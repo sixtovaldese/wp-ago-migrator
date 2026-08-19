@@ -19,19 +19,6 @@ class Plugin {
         add_action( 'admin_menu', [ $this, 'register_admin_menu' ] );
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
-
-        register_activation_hook( AGOMIGRATOR_FILE, [ $this, 'activate' ] );
-    }
-
-    public function activate(): void {
-        $tmp = WP_CONTENT_DIR . '/ago-migrator-tmp';
-        if ( ! is_dir( $tmp ) ) {
-            wp_mkdir_p( $tmp );
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents -- Hardening the temp dir at activation; WP_Filesystem is not available this early.
-            file_put_contents( $tmp . '/.htaccess', "Deny from all\n" );
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents -- Hardening the temp dir at activation; WP_Filesystem is not available this early.
-            file_put_contents( $tmp . '/index.php', "<?php\n// Silence is golden.\n" );
-        }
     }
 
     public function register_admin_menu(): void {

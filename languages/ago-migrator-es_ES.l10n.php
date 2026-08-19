@@ -1,7 +1,7 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-return ['x-generator'=>'aGo Migrator','translation-revision-date'=>'2026-03-17','plural-forms'=>'nplurals=2; plural=n != 1;','project-id-version'=>'aGo Migrator 1.0.0','language'=>'es','messages'=>[
+return ['x-generator'=>'aGo Migrator','translation-revision-date'=>'2026-03-17','plural-forms'=>'nplurals=2; plural=n != 1;','project-id-version'=>'aGo Migrator 1.0.1','language'=>'es','messages'=>[
 'aGo Tools'=>'aGo Herramientas',
 'Export full site'=>'Exportar sitio completo',
 'Generates a ZIP file with the complete database, plugins, themes, uploads, users and all configuration.'=>'Genera un archivo ZIP con la base de datos completa, plugins, temas, subidas, usuarios y toda la configuración.',
@@ -49,4 +49,21 @@ return ['x-generator'=>'aGo Migrator','translation-revision-date'=>'2026-03-17',
 
 'Migrator'=>'Migrator',
 'aGo Migrator'=>'aGo Migrator',
+'Invalid job id.'=>'Identificador de trabajo no válido.',
+'Invalid chunk.'=>'Fragmento no válido.',
+'The backup is no longer available. Run the export again.'=>'El respaldo ya no está disponible. Vuelve a ejecutar la exportación.',
+'The operation could not be completed.'=>'No se pudo completar la operación.',
+'Quick links'=>'Enlaces rápidos',
+'Moving WordPress, official guide'=>'Mover WordPress, guía oficial',
+'Changing the site URL'=>'Cambiar la URL del sitio',
+'Compare speed before and after the move'=>'Comparar la velocidad antes y después del traslado',
+'English, Spanish, Brazilian Portuguese'=>'Inglés, español, portugués de Brasil',
+'Completely free, no Pro tier'=>'Totalmente gratis, sin versión Pro',
+'Other aGo Lab plugins'=>'Otros plugins de aGo Lab',
+'Free WordPress plugins from the same team. No upsell pressure.'=>'Plugins gratuitos de WordPress del mismo equipo. Sin presión de venta.',
+'Guided SMTP email delivery.'=>'Envío de correo SMTP guiado.',
+'AI customer support widget for your site.'=>'Widget de soporte al cliente con IA para tu sitio.',
+'GDPR / LGPD / Chile Law 21.719 compliance toolkit.'=>'Kit de cumplimiento RGPD / LGPD / Ley 21.719 de Chile.',
+'Accessibility toolbar and automatic fixes.'=>'Barra de accesibilidad y correcciones automáticas.',
+'Browse aGo Lab plugins'=>'Explorar plugins de aGo Lab',
 ]];

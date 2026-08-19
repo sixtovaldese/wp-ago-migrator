@@ -4,24 +4,39 @@ namespace AgoLab\Migrator\Import;
 
 defined( 'ABSPATH' ) || exit;
 
-
-// phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_fopen,WordPress.WP.AlternativeFunctions.file_system_operations_fclose,WordPress.WP.AlternativeFunctions.file_system_operations_fwrite,WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents,WordPress.WP.AlternativeFunctions.file_system_operations_unlink,WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.Security.EscapeOutput.ExceptionNotEscaped
-// Reason: WordPress migrator needs streaming file IO + dynamic table names for SQL dump/load. WP_Filesystem cannot stream large files.
+/*
+ * Restoring files means writing them straight to disk as they come out of the
+ * archive. WP_Filesystem would need credentials and cannot stream, so those
+ * two sniffs are silenced and nothing else.
+ */
+// phpcs:disable WordPress.WP.AlternativeFunctions.file_put_contents_file_put_contents, WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 class Files {
 
     public function extract_from_zip( string $zip_path, string $prefix, string $target_dir ): int {
         $zip = new \ZipArchive();
         if ( true !== $zip->open( $zip_path ) ) {
-            throw new \RuntimeException( "Cannot open ZIP: $zip_path" );
+            throw new \RuntimeException( 'Cannot open the backup archive' );
+        }
+
+        if ( ! is_dir( $target_dir ) ) {
+            wp_mkdir_p( $target_dir );
+        }
+
+        $target_real = self::normalize( realpath( $target_dir ) );
+        if ( '' === $target_real ) {
+            $zip->close();
+            throw new \RuntimeException( 'Destination directory is not writable' );
         }
 
         $count = 0;
 
         for ( $i = 0; $i < $zip->numFiles; $i++ ) {
             $entry = $zip->getNameIndex( $i );
+            if ( ! is_string( $entry ) || '' === $entry ) {
+                continue;
+            }
 
-            // Security: prevent path traversal
-            if ( str_contains( $entry, '..' ) ) {
+            if ( ! self::entry_is_safe( $entry ) ) {
                 continue;
             }
 
@@ -44,7 +59,9 @@ class Files {
 
             // Directory entry
             if ( str_ends_with( $entry, '/' ) ) {
-                wp_mkdir_p( $dest );
+                if ( self::is_inside( $dest, $target_real ) ) {
+                    wp_mkdir_p( $dest );
+                }
                 continue;
             }
 
@@ -52,6 +69,15 @@ class Files {
             $parent = dirname( $dest );
             if ( ! is_dir( $parent ) ) {
                 wp_mkdir_p( $parent );
+            }
+
+            /*
+             * Final containment check, made against the path the filesystem
+             * actually resolved. This is what stops a symlink already present
+             * in the destination from redirecting the write elsewhere.
+             */
+            if ( ! self::is_inside( $parent, $target_real ) ) {
+                continue;
             }
 
             // Extract file
@@ -95,7 +121,9 @@ class Files {
             return null;
         }
 
-        return json_decode( $content, true );
+        $manifest = json_decode( $content, true );
+
+        return is_array( $manifest ) ? $manifest : null;
     }
 
     public function clear_directory( string $dir, array $skip = [] ): void {
@@ -122,14 +150,61 @@ class Files {
         }
     }
 
+    /**
+     * Reject archive entries that could escape the destination.
+     *
+     * Anything with a traversal segment, an absolute path, a Windows drive
+     * letter, a backslash or a null byte never reaches the filesystem.
+     */
+    private static function entry_is_safe( string $entry ): bool {
+        if ( str_contains( $entry, "\0" ) || str_contains( $entry, '\\' ) ) {
+            return false;
+        }
+
+        if ( str_starts_with( $entry, '/' ) || preg_match( '#^[A-Za-z]:#', $entry ) ) {
+            return false;
+        }
+
+        foreach ( explode( '/', $entry ) as $segment ) {
+            if ( '..' === $segment ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Whether a path resolves inside the destination root. */
+    private static function is_inside( string $path, string $target_real ): bool {
+        $real = self::normalize( realpath( $path ) );
+        if ( '' === $real ) {
+            // Not created yet: fall back to the lexical form of the parent.
+            $real = self::normalize( $path );
+        }
+
+        return $real === $target_real || str_starts_with( $real . '/', $target_real . '/' );
+    }
+
+    private static function normalize( string|false $path ): string {
+        if ( ! is_string( $path ) || '' === $path ) {
+            return '';
+        }
+
+        return rtrim( str_replace( '\\', '/', $path ), '/' );
+    }
+
     private function recursive_delete( string $dir ): void {
         $it    = new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS );
         $files = new \RecursiveIteratorIterator( $it, \RecursiveIteratorIterator::CHILD_FIRST );
         foreach ( $files as $file ) {
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
-            $file->isDir() ? rmdir( $file->getPathname() ) : wp_delete_file( $file->getPathname() );
+            if ( $file->isDir() ) {
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- WP_Filesystem has no non-interactive equivalent during an import.
+                rmdir( $file->getPathname() );
+            } else {
+                wp_delete_file( $file->getPathname() );
+            }
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir,WordPress.WP.AlternativeFunctions.rename_rename,WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Migrator needs direct file IO for streaming and atomic ops.
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- WP_Filesystem has no non-interactive equivalent during an import.
         rmdir( $dir );
     }
 }
