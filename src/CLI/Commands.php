@@ -71,8 +71,8 @@ class Commands {
         $size = size_format( (int) filesize( $output ) );
 
         // A full database dump inside the document root is reachable over HTTP.
-        $resolved = str_replace( '\\', '/', (string) realpath( $output ) );
-        $docroot  = rtrim( str_replace( '\\', '/', (string) realpath( ABSPATH ) ), '/' );
+        $resolved = wp_normalize_path( (string) realpath( $output ) );
+        $docroot  = \AgoLab\Migrator\Locations::install_root();
         if ( '' !== $docroot && str_starts_with( $resolved, $docroot . '/' ) ) {
             \WP_CLI::warning( 'The archive is inside the site document root and may be downloadable. Move it somewhere outside the web server.' );
         }

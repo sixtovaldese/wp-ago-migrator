@@ -5,7 +5,7 @@ Tags: migration, export, import, backup, transfer
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,7 @@ aGo Migrator packages WordPress content (database tables + uploads + plugin and 
 * Import archive on the destination site.
 * Search-replace of URLs on import.
 * No external services.
-* English, Spanish (es_ES) and Brazilian Portuguese (pt_BR) bundled.
+* Fully internationalized. Translations are contributed and delivered through translate.wordpress.org.
 
 == Installation ==
 
@@ -66,6 +66,14 @@ The plugin processes your own site data locally to build and restore the archive
 
 == Changelog ==
 
+= 1.0.2 =
+* Every file the plugin writes now lives in a folder named after the plugin inside the uploads directory, resolved at runtime, instead of a folder in wp-content.
+* Each location the plugin reads or restores (plugins, must-use plugins, themes, uploads, languages) is resolved through its own WordPress accessor, so installs that moved any of them outside wp-content are exported and restored correctly.
+* On import, the archive's upload directory is rewritten to wherever uploads live on the destination, which fixes media paths when the two sites do not share the same layout.
+* An export or a restore now requires the network capability on multisite, so a single site administrator can no longer act on the whole installation.
+* Upgrading or uninstalling removes the working directory used by earlier versions, so no old database dump is left behind.
+* Translations are no longer bundled: they come from translate.wordpress.org, where anyone can contribute them.
+
 = 1.0.1 =
 * Security: the working directory is created on demand and always carries its server-level denial files, instead of relying on activation having run.
 * Security: each backup is written inside a folder whose name is not guessable, so an archive cannot be located by trying URLs.
@@ -86,9 +94,12 @@ The plugin processes your own site data locally to build and restore the archive
 * Drag and drop import with manifest preview and confirmation.
 * Serialization-safe search-replace of URLs on import.
 * WP-CLI export and import commands.
-* English, Spanish and Brazilian Portuguese included.
+* Fully internationalized, with translations available through translate.wordpress.org.
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+Recommended: backups are now written inside the uploads directory, every content location is resolved through its own WordPress function, and on multisite only a network administrator can export or restore.
 
 = 1.0.1 =
 Recommended for every install: hardens where backups are stored, guarantees they are deleted, and restricts what a restore is allowed to execute.

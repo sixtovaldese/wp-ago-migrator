@@ -2,6 +2,8 @@
 
 namespace AgoLab\Migrator\Export;
 
+use AgoLab\Migrator\Locations;
+
 defined( 'ABSPATH' ) || exit;
 
 
@@ -17,9 +19,15 @@ class Files {
         'debug.log',
     ];
 
-    public function add_directory_to_zip( string $subdir, string $zip_path ): int {
-        $base = WP_CONTENT_DIR . '/' . $subdir;
-        if ( ! is_dir( $base ) ) {
+    /**
+     * Add one content location to the archive.
+     *
+     * @param string $name     Location name, as used inside the archive.
+     * @param string $zip_path Archive being written.
+     */
+    public function add_directory_to_zip( string $name, string $zip_path ): int {
+        $base = Locations::path( $name );
+        if ( '' === $base ) {
             return 0;
         }
 
@@ -32,13 +40,27 @@ class Files {
             \RecursiveIteratorIterator::LEAVES_ONLY
         );
 
+        /*
+         * The plugin's own working directory lives inside uploads, so it is
+         * excluded by its absolute path. Matching its name against every entry
+         * would also drop wp-content/plugins/ago-migrator, which belongs in the
+         * backup.
+         */
+        $work_root = Locations::work_root();
+
         foreach ( $iterator as $file ) {
             if ( ! $file->isFile() ) {
                 continue;
             }
 
-            $real_path = $file->getRealPath();
-            $relative  = 'wp-content/' . $subdir . '/' . substr( str_replace( '\\', '/', $real_path ), strlen( str_replace( '\\', '/', $base ) ) + 1 );
+            $real_path  = $file->getRealPath();
+            $normalized = wp_normalize_path( (string) $real_path );
+
+            if ( '' !== $work_root && str_starts_with( $normalized, $work_root . '/' ) ) {
+                continue;
+            }
+
+            $relative   = 'wp-content/' . $name . '/' . substr( $normalized, strlen( $base ) + 1 );
 
             // Skip excluded directories
             $skip = false;
@@ -74,14 +96,12 @@ class Files {
         $zip->close();
     }
 
+    /**
+     * Names of the content locations present on this install.
+     *
+     * @return string[]
+     */
     public function get_content_subdirs(): array {
-        $dirs   = [ 'plugins', 'themes', 'uploads', 'mu-plugins', 'languages' ];
-        $result = [];
-        foreach ( $dirs as $dir ) {
-            if ( is_dir( WP_CONTENT_DIR . '/' . $dir ) ) {
-                $result[] = $dir;
-            }
-        }
-        return $result;
+        return array_keys( Locations::content() );
     }
 }

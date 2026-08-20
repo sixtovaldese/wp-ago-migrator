@@ -21,13 +21,31 @@ class Plugin {
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
     }
 
+    /**
+     * Slug of the menu this plugin creates when it has to create one.
+     */
+    private const MENU_SLUG = 'agomigrator-tools';
+
     public function register_admin_menu(): void {
-        if ( empty( $GLOBALS['admin_page_hooks']['agolab-tools'] ) ) {
+        $capability = REST\Controller::capability();
+
+        /*
+         * Other plugins from the same author may already have added a shared
+         * parent menu. When one is there the page is added under it, so the
+         * dashboard does not grow a second top level entry for the same set of
+         * tools. When there is none, this plugin creates its own, under a slug
+         * carrying its own prefix.
+         */
+        $parent = 'agolab-tools';
+
+        if ( empty( $GLOBALS['admin_page_hooks'][ $parent ] ) ) {
+            $parent = self::MENU_SLUG;
+
             add_menu_page(
                 __( 'aGo Tools', 'ago-migrator' ),
                 __( 'aGo Tools', 'ago-migrator' ),
-                'manage_options',
-                'agolab-tools',
+                $capability,
+                $parent,
                 '__return_null',
                 'dashicons-hammer',
                 81
@@ -35,15 +53,15 @@ class Plugin {
         }
 
         add_submenu_page(
-            'agolab-tools',
+            $parent,
             __( 'aGo Migrator', 'ago-migrator' ),
             __( 'Migrator', 'ago-migrator' ),
-            'manage_options',
+            $capability,
             'agomigrator',
             [ Admin\Page::class, 'render' ]
         );
 
-        remove_submenu_page( 'agolab-tools', 'agolab-tools' );
+        remove_submenu_page( $parent, $parent );
     }
 
     public function register_rest_routes(): void {

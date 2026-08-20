@@ -2,6 +2,8 @@
 
 namespace AgoLab\Migrator\Import;
 
+use AgoLab\Migrator\Locations;
+
 defined( 'ABSPATH' ) || exit;
 
 /*
@@ -46,21 +48,29 @@ class SearchReplace {
             $this->replace[] = str_replace( '/', '\\/', $target_url );
         }
 
-        // Filesystem paths
-        $source_path = rtrim( $manifest['wp_content_dir'] ?? '', '/' );
-        $target_path = rtrim( WP_CONTENT_DIR, '/' );
+        /*
+         * Filesystem paths. The archive carries the absolute paths of the site
+         * it came from, and rows such as an attachment's _wp_attached_file or a
+         * cached template path hold them verbatim, so each one is rewritten to
+         * where that location lives on this install. The paths are read, never
+         * written to, and each comes from its own accessor rather than being
+         * assembled by hand.
+         */
+        $pairs = [
+            [ $manifest['upload_basedir'] ?? '', Locations::uploads() ],
+            [ $manifest['wp_content_dir'] ?? '', Locations::content_root() ],
+            [ $manifest['abspath'] ?? '', Locations::install_root() ],
+        ];
 
-        if ( $source_path && $source_path !== $target_path ) {
-            $this->search[]  = $source_path;
-            $this->replace[] = $target_path;
-        }
+        foreach ( $pairs as list( $source, $target ) ) {
+            $source = untrailingslashit( wp_normalize_path( (string) $source ) );
 
-        $source_abspath = rtrim( $manifest['abspath'] ?? '', '/' );
-        $target_abspath = rtrim( ABSPATH, '/' );
+            if ( '' === $source || '' === $target || $source === $target ) {
+                continue;
+            }
 
-        if ( $source_abspath && $source_abspath !== $target_abspath ) {
-            $this->search[]  = $source_abspath;
-            $this->replace[] = $target_abspath;
+            $this->search[]  = $source;
+            $this->replace[] = $target;
         }
     }
 

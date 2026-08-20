@@ -2,6 +2,8 @@
 
 namespace AgoLab\Migrator\Export;
 
+use AgoLab\Migrator\Locations;
+
 defined( 'ABSPATH' ) || exit;
 
 use AgoLab\Migrator\Storage;
@@ -127,6 +129,16 @@ class Exporter {
 
             case 'db_to_zip':
                 $this->files->add_file_to_zip( $job['sql_file'], 'database.sql', $job['zip_path'] );
+
+                /*
+                 * The loose dump goes as soon as it is inside the archive, so a
+                 * plain .sql file with the whole database is on disk only for
+                 * the length of the export and not until the job ends.
+                 */
+                if ( file_exists( $job['sql_file'] ) ) {
+                    wp_delete_file( $job['sql_file'] );
+                }
+
                 $message = 'SQL added to ZIP';
                 break;
 
@@ -136,8 +148,9 @@ class Exporter {
                 break;
 
             case 'cleanup':
-                // Only the loose dump is removed here. The archive stays until
-                // it is downloaded, then Storage::purge_job() takes the folder.
+                // Safety net: the dump is normally gone by now, removed as soon
+                // as it entered the archive. The archive itself stays until it
+                // is downloaded, then Storage::purge_job() takes the folder.
                 if ( ! empty( $job['sql_file'] ) && file_exists( $job['sql_file'] ) ) {
                     wp_delete_file( $job['sql_file'] );
                 }
@@ -178,8 +191,9 @@ class Exporter {
             'table_prefix'   => $wpdb->prefix,
             'db_charset'     => $wpdb->charset,
             'tables'         => $this->db->get_all_tables(),
-            'wp_content_dir' => WP_CONTENT_DIR,
-            'abspath'        => ABSPATH,
+            'wp_content_dir' => Locations::content_root(),
+            'abspath'        => Locations::install_root(),
+            'upload_basedir' => Locations::uploads(),
             'active_plugins' => get_option( 'active_plugins', [] ),
             'active_theme'   => get_stylesheet(),
             'multisite'      => is_multisite(),

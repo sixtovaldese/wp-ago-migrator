@@ -140,8 +140,29 @@ class Importer {
         switch ( $step['type'] ) {
             case 'extract_files':
                 $subdir     = $step['subdir'];
-                $target_dir = WP_CONTENT_DIR . '/' . $subdir;
-                $skip       = ( 'plugins' === $subdir ) ? [ 'ago-migrator' ] : [];
+                $target_dir = \AgoLab\Migrator\Locations::path( $subdir );
+
+                if ( '' === $target_dir ) {
+                    $message = "Skipped wp-content/$subdir/: this install has no such directory";
+                    break;
+                }
+
+                /*
+                 * Two things survive a restore. The plugin itself, because the
+                 * rest of the job runs from its code. And its working folder,
+                 * which lives inside uploads and holds the very archive being
+                 * read: clearing uploads without skipping it would delete the
+                 * archive halfway through the restore.
+                 */
+                $skip = [];
+
+                if ( 'plugins' === $subdir ) {
+                    $skip[] = 'ago-migrator';
+                }
+
+                if ( 'uploads' === $subdir ) {
+                    $skip[] = \AgoLab\Migrator\Locations::WORK_DIR;
+                }
 
                 // Clear existing content (except self)
                 $this->files->clear_directory( $target_dir, $skip );

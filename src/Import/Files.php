@@ -193,18 +193,34 @@ class Files {
         return rtrim( str_replace( '\\', '/', $path ), '/' );
     }
 
+    /**
+     * Whether a directory has nothing left in it.
+     *
+     * A file the process cannot delete (a different owner, a lock) leaves its
+     * directory behind. Calling rmdir() anyway would raise a PHP warning on a
+     * site with WP_DEBUG on, so the directory is simply left in place: the
+     * restore writes over whatever is in it.
+     */
+    private static function is_empty_dir( string $dir ): bool {
+        return ! ( new \FilesystemIterator( $dir, \FilesystemIterator::SKIP_DOTS ) )->valid();
+    }
+
     private function recursive_delete( string $dir ): void {
         $it    = new \RecursiveDirectoryIterator( $dir, \FilesystemIterator::SKIP_DOTS );
         $files = new \RecursiveIteratorIterator( $it, \RecursiveIteratorIterator::CHILD_FIRST );
         foreach ( $files as $file ) {
             if ( $file->isDir() ) {
-                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- WP_Filesystem has no non-interactive equivalent during an import.
-                rmdir( $file->getPathname() );
+                if ( self::is_empty_dir( $file->getPathname() ) ) {
+                    // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- WP_Filesystem has no non-interactive equivalent during an import.
+                    rmdir( $file->getPathname() );
+                }
             } else {
                 wp_delete_file( $file->getPathname() );
             }
         }
-        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- WP_Filesystem has no non-interactive equivalent during an import.
-        rmdir( $dir );
+        if ( self::is_empty_dir( $dir ) ) {
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- WP_Filesystem has no non-interactive equivalent during an import.
+            rmdir( $dir );
+        }
     }
 }

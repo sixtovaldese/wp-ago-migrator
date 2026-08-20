@@ -64,8 +64,27 @@ class Controller {
         ] );
     }
 
+    /**
+     * Who may run an export or a restore.
+     *
+     * Every route of this plugin reads or replaces the whole database and the
+     * shared content directories, which on a network reaches beyond the site
+     * whose dashboard the request came from. On multisite the check is
+     * therefore the network capability, so a single site administrator cannot
+     * export or restore the installation. Outside multisite it is the usual
+     * administrator capability, and the plugin refuses to run without it.
+     */
     public function check_permission(): bool {
-        return current_user_can( 'manage_options' );
+        return current_user_can( self::capability() );
+    }
+
+    /**
+     * The capability an export or a restore requires on this install.
+     *
+     * Shared with the admin menu so the page and its routes never disagree.
+     */
+    public static function capability(): string {
+        return is_multisite() ? 'manage_network_options' : 'manage_options';
     }
 
     /**

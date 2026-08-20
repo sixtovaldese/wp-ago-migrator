@@ -90,7 +90,7 @@ class Page {
                             <li><?php esc_html_e( 'Serialization-safe URL replace', 'ago-migrator' ); ?></li>
                             <li><?php esc_html_e( 'Standard ZIP format', 'ago-migrator' ); ?></li>
                             <li><?php esc_html_e( 'WP-CLI support', 'ago-migrator' ); ?></li>
-                            <li><?php esc_html_e( 'English, Spanish, Brazilian Portuguese', 'ago-migrator' ); ?></li>
+                            <li><?php esc_html_e( 'Available in your language when the translation exists', 'ago-migrator' ); ?></li>
                             <li><?php esc_html_e( 'Completely free, no Pro tier', 'ago-migrator' ); ?></li>
                         </ul>
                         <p style="margin-top:12px">
