@@ -106,6 +106,13 @@ class Plugin {
                 'importBtn'      => __( 'Confirm & Import', 'ago-migrator' ),
                 'importDone'     => __( 'Import complete. Redirecting to login...', 'ago-migrator' ),
                 'requestFailed'  => __( 'Request failed', 'ago-migrator' ),
+                'networkError'   => __( 'The site could not be reached. Check the connection and start again.', 'ago-migrator' ),
+                /* translators: %s is an HTTP status code, such as 500. */
+                'serverError'    => __( 'The server answered with an error (HTTP %s).', 'ago-migrator' ),
+                'invalidResponse' => __( 'The server answered with something other than the expected data. A security layer or the hosting may be filtering the request.', 'ago-migrator' ),
+                'slowingDown'    => __( 'The server accepts a limited number of requests. The job continues at a slower pace.', 'ago-migrator' ),
+                /* translators: %s is a number of seconds. */
+                'retrying'       => __( 'Retrying in %s seconds.', 'ago-migrator' ),
                 'errorLabel'     => __( 'Error', 'ago-migrator' ),
                 'origin'         => __( 'Origin:', 'ago-migrator' ),
                 'tables'         => __( 'Tables:', 'ago-migrator' ),

@@ -5,7 +5,7 @@ Tags: migration, export, import, backup, transfer
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -65,6 +65,10 @@ The admin page does contain links that open in a new tab only when you click the
 The plugin processes your own site data locally to build and restore the archive. It sends no data to third parties. It stores short-lived job transients and a temporary working directory in wp-content; on uninstall, those transients and the temporary directory are removed.
 
 == Changelog ==
+
+= 1.0.3 =
+* A hosting or security layer that limits how many requests it accepts no longer stops an export or an import halfway: the step is repeated after a short wait and the rest of the job continues at a slower pace.
+* When the server answers with an error, the log now names it, instead of showing the message of a failed attempt to read the answer as data.
 
 = 1.0.2 =
 * Every file the plugin writes now lives in a folder named after the plugin inside the uploads directory, resolved at runtime, instead of a folder in wp-content.

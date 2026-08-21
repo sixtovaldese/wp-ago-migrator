@@ -6,18 +6,105 @@
 
     const t = cfg.i18n || {};
 
-    async function postJSON(endpoint, data) {
-        const resp = await fetch(cfg.restUrl + endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': cfg.nonce
-            },
-            body: JSON.stringify(data)
-        });
-        const json = await resp.json();
-        if (!resp.ok) throw new Error(json.error || json.message || t.requestFailed);
+    /*
+     * A step is only repeated when the request never reached WordPress: a rate
+     * limit in front of the site, or the server refusing connections. Repeating
+     * a step that did run would append the same data to the archive twice, so
+     * every other failure stops the job and says why.
+     */
+    const RETRY_STATUSES = [429, 503];
+    const MAX_ATTEMPTS = 6;
+    const PACE_AFTER_LIMIT = 1100;
+
+    let pace = 0;
+    let paceAnnounced = false;
+
+    function wait(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    function fill(template, value) {
+        return String(template || '').replace('%s', value);
+    }
+
+    async function request(endpoint, data) {
+        let resp;
+
+        try {
+            resp = await fetch(cfg.restUrl + endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': cfg.nonce
+                },
+                body: JSON.stringify(data)
+            });
+        } catch (e) {
+            const offline = new Error(t.networkError);
+            offline.retryable = true;
+            throw offline;
+        }
+
+        const body = await resp.text();
+        let json = null;
+
+        if (body) {
+            try {
+                json = JSON.parse(body);
+            } catch (e) {
+                json = null;
+            }
+        }
+
+        if (!resp.ok) {
+            const failure = new Error(
+                (json && (json.error || json.message)) || fill(t.serverError, resp.status)
+            );
+            failure.retryable = RETRY_STATUSES.indexOf(resp.status) !== -1;
+            failure.retryAfter = parseInt(resp.headers.get('Retry-After'), 10) || 0;
+            throw failure;
+        }
+
+        if (null === json) {
+            throw new Error(t.invalidResponse);
+        }
+
         return json;
+    }
+
+    async function postJSON(endpoint, data) {
+        let backoff = 2;
+
+        for (let attempt = 1; ; attempt++) {
+            if (pace) {
+                await wait(pace);
+            }
+
+            try {
+                return await request(endpoint, data);
+            } catch (e) {
+                if (!e.retryable || attempt >= MAX_ATTEMPTS) {
+                    throw e;
+                }
+
+                /*
+                 * Once the server has said it accepts fewer requests, the rest
+                 * of the job runs at a slower pace instead of hitting the wall
+                 * on every remaining step.
+                 */
+                pace = PACE_AFTER_LIMIT;
+
+                if (!paceAnnounced) {
+                    paceAnnounced = true;
+                    logLine(t.slowingDown, 'info');
+                }
+
+                const delay = e.retryAfter > 0 ? e.retryAfter : backoff;
+                logLine(fill(t.retrying, delay), 'info');
+                await wait(delay * 1000);
+                backoff = Math.min(backoff * 2, 30);
+            }
+        }
     }
 
     function updateProgress(barId, statusId, current, total, message) {

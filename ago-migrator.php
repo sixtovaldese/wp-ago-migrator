@@ -3,7 +3,7 @@
  * Plugin Name: aGo Migrator
  * Plugin URI:  https://ago.cl/herramientas/
  * Description: Full-site backup & migration. One-click export, drag & drop import, serialization-safe search-replace.
- * Version:     1.0.2
+ * Version:     1.0.3
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author:      aGo Lab
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AGOMIGRATOR_VERSION', '1.0.2' );
+define( 'AGOMIGRATOR_VERSION', '1.0.3' );
 define( 'AGOMIGRATOR_FILE', __FILE__ );
 define( 'AGOMIGRATOR_PATH', plugin_dir_path( __FILE__ ) );
 define( 'AGOMIGRATOR_URL', plugin_dir_url( __FILE__ ) );
