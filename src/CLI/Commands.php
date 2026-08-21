@@ -32,21 +32,24 @@ class Commands {
         $total    = $info['total_steps'];
 
         \WP_CLI::log( "Job: $job_id | Steps: $total" );
-        $progress = \WP_CLI\Utils\make_progress_bar( 'Exporting', $total );
 
-        for ( $i = 0; $i < $total; $i++ ) {
+        /*
+         * The step count grows as content locations are indexed, so the loop
+         * runs until the job says it is done and each line reports the count
+         * the job itself keeps.
+         */
+        $done = false;
+
+        while ( ! $done ) {
             $result = $exporter->step( $job_id );
-            $progress->tick();
 
             if ( ! empty( $result['error'] ) ) {
                 \WP_CLI::error( $result['error'] );
             }
 
-            if ( $result['done'] ) {
-                break;
-            }
+            \WP_CLI::log( sprintf( '[%d/%d] %s', $result['step'], $result['total'], $result['message'] ) );
+            $done = ! empty( $result['done'] );
         }
-        $progress->finish();
 
         $job = get_transient( 'agomigrator_job_' . $job_id );
 

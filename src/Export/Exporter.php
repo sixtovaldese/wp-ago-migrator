@@ -55,8 +55,15 @@ class Exporter {
         $steps[] = [ 'type' => 'db_footer' ];
         $steps[] = [ 'type' => 'db_to_zip' ];
 
+        /*
+         * Each content location gets its own indexing step, and that step is
+         * what appends the batches of files that follow it. Nothing here walks
+         * a directory or compresses anything: a job on a site with a hundred
+         * thousand files must not have a single request that grows with the
+         * size of the site, and that includes the planning.
+         */
         foreach ( $subdirs as $subdir ) {
-            $steps[] = [ 'type' => 'files', 'subdir' => $subdir ];
+            $steps[] = [ 'type' => 'index', 'subdir' => $subdir ];
         }
 
         $steps[] = [ 'type' => 'cleanup' ];
@@ -142,9 +149,47 @@ class Exporter {
                 $message = 'SQL added to ZIP';
                 break;
 
+            case 'index':
+                $index = $job['tmp_dir'] . '/index-' . sanitize_key( $step['subdir'] ) . '.txt';
+                $total = $this->files->write_index( $step['subdir'], $index );
+
+                if ( $total > 0 ) {
+                    $batches = $this->files->plan_batches( $index );
+                    $insert  = [];
+
+                    foreach ( $batches as $batch ) {
+                        $insert[] = [
+                            'type'   => 'files',
+                            'subdir' => $step['subdir'],
+                            'index'  => $index,
+                            'offset' => $batch['offset'],
+                            'count'  => $batch['count'],
+                            'total'  => $total,
+                        ];
+                    }
+
+                    /*
+                     * The batches of this location go right after the step that
+                     * indexed it, so the archive is written in the same order a
+                     * person reads the progress log.
+                     */
+                    array_splice( $job['steps'], $idx + 1, 0, $insert );
+                }
+
+                $message = sprintf( 'wp-content/%s/: %d files to archive', $step['subdir'], $total );
+                break;
+
             case 'files':
-                $count   = $this->files->add_directory_to_zip( $step['subdir'], $job['zip_path'] );
-                $message = "wp-content/{$step['subdir']}/ ($count files)";
+                $added = $this->files->add_batch_to_zip(
+                    $step['subdir'],
+                    $step['index'],
+                    $step['offset'],
+                    $step['count'],
+                    $job['zip_path']
+                );
+
+                $done_files = $step['offset'] + $added;
+                $message    = "wp-content/{$step['subdir']}/ ({$done_files} of {$step['total']} files)";
                 break;
 
             case 'cleanup':
@@ -154,6 +199,13 @@ class Exporter {
                 if ( ! empty( $job['sql_file'] ) && file_exists( $job['sql_file'] ) ) {
                     wp_delete_file( $job['sql_file'] );
                 }
+
+                // The file indexes have served their purpose once everything is
+                // inside the archive.
+                foreach ( glob( $job['tmp_dir'] . '/index-*.txt' ) ?: [] as $index ) {
+                    wp_delete_file( $index );
+                }
+
                 $message = 'Cleanup completed';
                 break;
         }

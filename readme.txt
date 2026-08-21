@@ -5,7 +5,7 @@ Tags: migration, export, import, backup, transfer
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.3
+Stable tag: 1.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -65,6 +65,11 @@ The admin page does contain links that open in a new tab only when you click the
 The plugin processes your own site data locally to build and restore the archive. It sends no data to third parties. It stores short-lived job transients and a temporary working directory in wp-content; on uninstall, those transients and the temporary directory are removed.
 
 == Changelog ==
+
+= 1.1.0 =
+* Exporting the files of a site is now done in batches instead of one directory per request, so a large uploads folder no longer runs past the time limit of the server and costs you the whole export.
+* Each location is indexed before its files are archived, so progress is reported file by file against the real total.
+* WP-CLI reports each step as it goes, with its own count.
 
 = 1.0.3 =
 * A hosting or security layer that limits how many requests it accepts no longer stops an export or an import halfway: the step is repeated after a short wait and the rest of the job continues at a slower pace.

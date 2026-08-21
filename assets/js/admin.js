@@ -152,10 +152,18 @@
             const { job_id, total_steps } = await postJSON('/export/start', {});
             logLine('Job: ' + job_id + ' | Steps: ' + total_steps, 'info');
 
-            for (let i = 0; i < total_steps; i++) {
+            /*
+             * The plan grows while it runs: indexing a content location appends
+             * the batches of files that follow it, so the loop follows the
+             * server's own count instead of the one it was given at the start.
+             */
+            let done = false;
+
+            while (!done) {
                 const result = await postJSON('/export/step', { job_id });
                 updateProgress('ago-export-bar', 'ago-export-status', result.step, result.total, result.message);
                 logLine(result.message, 'ok');
+                done = result.done;
 
                 if (result.done) {
                     logLine(t.exportDone, 'ok');
@@ -165,7 +173,6 @@
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
-                    break;
                 }
             }
         } catch (e) {
